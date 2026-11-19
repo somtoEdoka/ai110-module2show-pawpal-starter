@@ -119,3 +119,58 @@ def test_detect_conflicts_ignores_tasks_on_different_dates():
     ]
 
     assert Scheduler().detect_conflicts(tasks) == []
+
+
+def test_filter_tasks_by_pet_or_completion_independently():
+    biscuit_task = Task(title="Walk")
+    completed_biscuit_task = Task(title="Dinner", completed=True)
+    mochi_task = Task(title="Play")
+    owner = Owner(
+        pets=[
+            Pet(name="Biscuit", tasks=[biscuit_task, completed_biscuit_task]),
+            Pet(name="Mochi", tasks=[mochi_task]),
+        ]
+    )
+    scheduler = Scheduler(owner)
+
+    assert scheduler.filter_tasks(pet_name="BISCUIT") == [
+        biscuit_task,
+        completed_biscuit_task,
+    ]
+    assert scheduler.filter_tasks(completed=False) == [biscuit_task, mochi_task]
+    assert scheduler.filter_tasks(pet_name="Unknown") == []
+
+
+def test_pet_with_zero_tasks_has_an_empty_plan():
+    pet = Pet(name="Biscuit")
+    scheduler = Scheduler(Owner(available_minutes=30, pets=[pet]))
+
+    plan = scheduler.generate_plan(date(2026, 11, 19))
+
+    assert pet.tasks == []
+    assert plan.scheduled_items == []
+    assert plan.skipped_tasks == []
+    assert plan.total_minutes_scheduled == 0
+
+
+def test_empty_schedule_without_pets_has_no_conflicts():
+    scheduler = Scheduler()
+
+    plan = scheduler.generate_plan(date(2026, 11, 19))
+
+    assert plan.scheduled_items == []
+    assert plan.skipped_tasks == []
+    assert plan.total_minutes_scheduled == 0
+    assert scheduler.detect_conflicts() == []
+
+
+def test_task_exceeding_available_minutes_is_skipped():
+    task = Task(title="Long walk", duration_minutes=31)
+    pet = Pet(name="Biscuit", tasks=[task])
+    scheduler = Scheduler(Owner(available_minutes=30, pets=[pet]))
+
+    plan = scheduler.generate_plan(date(2026, 11, 19))
+
+    assert plan.scheduled_items == []
+    assert plan.skipped_tasks == [(task, "Not enough available time")]
+    assert plan.total_minutes_scheduled == 0

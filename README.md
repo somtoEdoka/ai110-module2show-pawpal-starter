@@ -58,17 +58,44 @@ Total scheduled: 75 minutes
 ## 🧪 Testing PawPal+
 
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The automated test suite covers:
 
+- Sorting tasks chronologically, including unscheduled tasks.
+- Filtering tasks by pet name and completion status.
+- Creating the next daily and weekly recurrence when a task is completed.
+- Detecting duplicate and overlapping task times.
+- Edge cases including pets with no tasks, an empty schedule, and tasks exceeding available time.
+
+Passing verbose test run (`python -m pytest -v`):
+
+```text
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.2.0, pluggy-1.7.0 -- /home/codespace/.python/current/bin/python
+cachedir: .pytest_cache
+rootdir: /workspaces/ai110-module2show-pawpal-starter
+plugins: platformdirs-4.14.0, anyio-4.15.1
+collecting ... collected 12 items
+
+tests/test_pawpal.py::test_task_mark_complete PASSED                     [  8%]
+tests/test_pawpal.py::test_pet_add_task PASSED                           [ 16%]
+tests/test_pawpal.py::test_sort_by_time_handles_time_strings_and_unscheduled_tasks PASSED [ 25%]
+tests/test_pawpal.py::test_filter_tasks_by_pet_and_completion PASSED     [ 33%]
+tests/test_pawpal.py::test_mark_recurring_task_complete_adds_next_occurrence_to_same_pet PASSED [ 41%]
+tests/test_pawpal.py::test_mark_weekly_task_complete_advances_one_week PASSED [ 50%]
+tests/test_pawpal.py::test_detect_conflicts_reports_same_start_and_overlapping_slots PASSED [ 58%]
+tests/test_pawpal.py::test_detect_conflicts_ignores_tasks_on_different_dates PASSED [ 66%]
+tests/test_pawpal.py::test_filter_tasks_by_pet_or_completion_independently PASSED [ 75%]
+tests/test_pawpal.py::test_pet_with_zero_tasks_has_an_empty_plan PASSED  [ 83%]
+tests/test_pawpal.py::test_empty_schedule_without_pets_has_no_conflicts PASSED [ 91%]
+tests/test_pawpal.py::test_task_exceeding_available_minutes_is_skipped PASSED [100%]
+
+============================== 12 passed in 0.03s ==============================
 ```
-# Paste your pytest output here
+
+**Confidence Level:** ⭐⭐⭐⭐⭐ 5/5 stars — The suite verifies the key scheduling behaviors and edge cases, and all 12 tests passed.
 ```
 
 ## 📐 Smarter Scheduling
