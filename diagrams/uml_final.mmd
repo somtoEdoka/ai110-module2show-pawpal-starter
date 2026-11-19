@@ -1,0 +1,81 @@
+classDiagram
+    class Owner {
+        +str name
+        +int available_minutes
+        +Dict~str, Any~ preferences
+        +List~Pet~ pets
+        +add_pet(pet: Pet) None
+        +get_all_tasks() List~Task~
+        +update_availability(minutes: int) None
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +int age
+        +List~Task~ tasks
+        +add_task(task: Task) None
+        +remove_task(task_id: str) None
+        +get_tasks_by_priority(priority: str) List~Task~
+    }
+
+    class Task {
+        +str title
+        +str category
+        +int duration_minutes
+        +str priority
+        +Optional~time~ preferred_time
+        +str recurrence
+        +Optional~date~ start_date
+        +int recurrence_interval
+        +List~int~ recurrence_days
+        +bool completed
+        +str task_id
+        +mark_complete() None
+        +is_due_today(target_date: date) bool
+        +update_details(title, category, duration_minutes, priority, preferred_time, recurrence, start_date, recurrence_interval, recurrence_days, completed) None
+    }
+
+    class ScheduledItem {
+        +Task task
+        +datetime start_time
+        +datetime end_time
+        +str reason
+        +overlaps_with(other: ScheduledItem) bool
+        +format_display() str
+    }
+
+    class DailyPlan {
+        +date date
+        +str pet_name
+        +List~ScheduledItem~ scheduled_items
+        +List~Tuple~ skipped_tasks
+        +int total_minutes_scheduled
+        +get_summary() str
+        +get_conflicts() List~Tuple~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +int buffer_minutes
+        +time day_start
+        +time day_end
+        +generate_plan(target_date: date) DailyPlan
+        +sort_tasks(tasks: List~Task~) List~Task~
+        +sort_by_time(tasks: List~Task~) List~Task~
+        +filter_tasks(pet_name: Optional~str~, completed: Optional~bool~) List~Task~
+        +mark_task_complete(task: Task) Optional~Task~
+        +detect_conflicts(tasks: Optional~List~Task~~) List~str~
+        +filter_due_tasks(tasks: List~Task~, target_date: date) List~Task~
+        +resolve_conflict(item_a: ScheduledItem, item_b: ScheduledItem) ScheduledItem
+        +explain_decision(task: Task, status: str) str
+    }
+
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : tracks
+    Scheduler ..> Owner : reads availability and pets
+    Scheduler ..> Task : filters, sorts, completes, checks conflicts
+    Scheduler ..> DailyPlan : generates
+    DailyPlan "1" *-- "0..*" ScheduledItem : contains
+    ScheduledItem "0..*" --> "1" Task : schedules

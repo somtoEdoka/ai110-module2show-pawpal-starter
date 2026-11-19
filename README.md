@@ -98,25 +98,51 @@ tests/test_pawpal.py::test_task_exceeding_available_minutes_is_skipped PASSED [1
 **Confidence Level:** ⭐⭐⭐⭐⭐ 5/5 stars — The suite verifies the key scheduling behaviors and edge cases, and all 12 tests passed.
 ```
 
-## 📐 Smarter Scheduling
+## ✨ Features
 
-> Fill in once you've implemented scheduling logic.
+- **Sorting by time:** `Scheduler.sort_by_time()` displays preferred-time tasks chronologically and places unscheduled tasks last.
+- **Filtering by pet and status:** `Scheduler.filter_tasks()` supports filtering by pet name and completion state (all, pending, or completed).
+- **Conflict warnings:** `Scheduler.detect_conflicts()` detects duplicate or overlapping preferred-time slots and shows the affected task names with a suggested action. It leaves changes to the pet owner.
+- **Automated daily and weekly recurrence:** `Scheduler.mark_task_complete()` creates the next incomplete daily or weekly occurrence when its recurring task is completed.
+- **Time-budget scheduling:** `Scheduler.generate_plan()` considers due tasks, priority, preferred time, available minutes, an optional buffer, and the 08:00–20:00 planning window. It reports scheduled time and explains skipped tasks.
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | `Scheduler.sort_by_time()` | Sorts chronologically by preferred time; unscheduled tasks come last. |
-| Filtering | `Scheduler.filter_tasks()` | Filters by pet name, completion status, or both. |
-| Conflict handling | `Scheduler.detect_conflicts()` | Returns warnings for matching or overlapping preferred-time slots; it does not reschedule tasks. |
-| Recurring tasks | `Scheduler.mark_task_complete()` + `timedelta` | Creates the next task occurrence one day later for daily tasks or seven days later for weekly tasks. |
+## 🐾 Demo Walkthrough
 
-## 📸 Demo Walkthrough
+1. Save the owner's name and available minutes, then add a pet.
+2. Add care tasks with a category, duration, priority, start date, recurrence, and optional preferred time.
+3. Generate today's schedule. Review the time-budgeted plan, total scheduled minutes, explanations, and skipped tasks. The task list is sorted by preferred time; overlapping preferences appear as warnings that identify the tasks and suggest adjusting a time or duration.
+4. Mark a recurring task complete. PawPal+ confirms completion and displays the date of the automatically created next occurrence.
+5. Use the pet and status filters to review all, pending, or completed tasks. For a terminal demonstration of sorting, filtering, recurrence, and conflict detection, run `python main.py`.
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+Sample CLI output from `python main.py`:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+```text
+Today's Schedule
+================
+Daily plan for Biscuit, Mochi on 2026-11-19:
+  08:00 — Morning walk (30 min) [priority: high]
+  09:30 — Play session (20 min) [priority: high]
+  10:00 — Training (15 min) [priority: medium]
+  18:00 — Dinner (15 min) [priority: medium]
+  18:25 — Medication (10 min) [priority: low]
+Total scheduled: 90 minutes
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+Tasks sorted by preferred time
+  08:00 — Morning walk
+  09:30 — Training
+  09:30 — Play session
+  12:00 — Medication
+  18:00 — Dinner
+
+Uncompleted tasks for Biscuit
+  Dinner
+  Morning walk
+  Training
+
+Completed Dinner; next occurrence: 2026-11-20
+
+Conflict warnings
+  Conflict: 'Training' (09:30:00) and 'Play session' (09:30:00) have overlapping time slots.
+```
+
+The final class diagram is available in [`diagrams/uml_final.mmd`](./diagrams/uml_final.mmd).
