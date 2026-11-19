@@ -1,8 +1,13 @@
 """Unit tests for PawPal+ task and pet behavior."""
 
 from datetime import date, datetime, time, timedelta
+from enum import Enum
 
 from pawpal_system import Owner, Pet, Scheduler, Task
+
+
+class ReminderMode(Enum):
+    EMAIL = "email"
 
 
 def test_task_mark_complete():
@@ -226,3 +231,57 @@ def test_find_next_available_slot_starts_at_configured_day_start():
     slot = scheduler.find_next_available_slot(date(2026, 11, 19), 60)
 
     assert slot == datetime(2026, 11, 19, 9, 0)
+
+
+def test_owner_json_round_trip_preserves_pet_tasks_and_temporal_values(tmp_path):
+    start_date = date(2026, 11, 19)
+    preferred_time = time(7, 30)
+    reviewed_at = datetime(2026, 11, 18, 16, 45)
+    owner = Owner(
+        name="Jordan",
+        available_minutes=90,
+        preferences={
+            "reviewed_at": reviewed_at,
+            "reminder_mode": ReminderMode.EMAIL,
+        },
+        pets=[
+            Pet(
+                name="Biscuit",
+                species="dog",
+                breed="Retriever",
+                age=4,
+                tasks=[
+                    Task(
+                        title="Morning walk",
+                        category="exercise",
+                        duration_minutes=30,
+                        priority="high",
+                        preferred_time=preferred_time,
+                        recurrence="weekly",
+                        start_date=start_date,
+                        recurrence_interval=2,
+                        recurrence_days=[0, 3],
+                        completed=True,
+                        task_id="walk1234",
+                    )
+                ],
+            )
+        ],
+    )
+    filepath = tmp_path / "pawpal-data.json"
+
+    owner.save_to_json(filepath)
+    loaded_owner = Owner.load_from_json(filepath)
+    loaded_task = loaded_owner.pets[0].tasks[0]
+
+    assert loaded_owner.name == owner.name
+    assert loaded_owner.available_minutes == owner.available_minutes
+    assert loaded_owner.preferences["reviewed_at"] == reviewed_at
+    assert loaded_owner.preferences["reminder_mode"] == "email"
+    assert loaded_owner.pets[0].name == "Biscuit"
+    assert loaded_task.preferred_time == preferred_time
+    assert loaded_task.start_date == start_date
+    assert loaded_task.recurrence_interval == 2
+    assert loaded_task.recurrence_days == [0, 3]
+    assert loaded_task.completed is True
+    assert loaded_task.task_id == "walk1234"

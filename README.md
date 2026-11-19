@@ -105,6 +105,22 @@ tests/test_pawpal.py::test_task_exceeding_available_minutes_is_skipped PASSED [1
 - **Conflict warnings:** `Scheduler.detect_conflicts()` detects duplicate or overlapping preferred-time slots and shows the affected task names with a suggested action. It leaves changes to the pet owner.
 - **Automated daily and weekly recurrence:** `Scheduler.mark_task_complete()` creates the next incomplete daily or weekly occurrence when its recurring task is completed.
 - **Time-budget scheduling:** `Scheduler.generate_plan()` considers due tasks, priority, preferred time, available minutes, an optional buffer, and the 08:00–20:00 planning window. It reports scheduled time and explains skipped tasks.
+- **Next available slot:** `Scheduler.find_next_available_slot()` finds the earliest slot for a requested duration while respecting existing scheduled items, the planning window, and the configured buffer.
+- **JSON persistence:** Owner, pet, and task information is loaded from and saved to `data.json`.
+
+## 💾 Data Persistence
+
+When the Streamlit app starts, it loads `data.json` from the project working directory if the file exists; otherwise it starts with the default owner. The app saves the owner, pets, and tasks after owner details are saved, a pet or task is added, or a task is marked complete. Daily plans are generated from the saved care data and are not persisted.
+
+The JSON conversion preserves task dates and preferred times, supports tagged `date`, `time`, and `datetime` values in nested data, and stores `Enum` values using their underlying value. The file is created automatically the first time data is saved. It contains personal pet-care information, so keep it local and do not commit it.
+
+Persistence changes involve:
+
+- `pawpal_system.py` — model `to_dict()`/`from_dict()` conversion and `Owner.save_to_json()`/`load_from_json()`.
+- `app.py` — load existing data at startup and save after owner, pet, and task changes.
+- `tests/test_pawpal.py` — round-trip coverage using pytest's temporary-path fixture.
+- `.gitignore` — excludes the local `data.json` file from Git.
+- `README.md` — persistence workflow and file documentation.
 
 ## 🐾 Demo Walkthrough
 

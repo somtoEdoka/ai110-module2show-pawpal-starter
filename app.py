@@ -1,4 +1,5 @@
 from datetime import date, time
+from pathlib import Path
 
 import streamlit as st
 
@@ -7,7 +8,12 @@ from pawpal_system import Owner, Pet, Scheduler, Task
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 if "owner" not in st.session_state:
-    st.session_state.owner = Owner(name="Jordan", available_minutes=120)
+    data_file = Path("data.json")
+    st.session_state.owner = (
+        Owner.load_from_json(data_file)
+        if data_file.is_file()
+        else Owner(name="Jordan", available_minutes=120)
+    )
 
 owner = st.session_state.owner
 scheduler = Scheduler(owner)
@@ -29,6 +35,7 @@ with st.form("owner_details"):
 if owner_submitted:
     owner.name = owner_name.strip()
     owner.update_availability(int(available_minutes))
+    owner.save_to_json()
     st.session_state.pop("daily_plan", None)
     st.session_state.pop("conflict_warnings", None)
     st.success("Owner details saved.")
@@ -55,6 +62,7 @@ if pet_submitted:
                 age=int(age),
             )
         )
+        owner.save_to_json()
         st.session_state.pop("daily_plan", None)
         st.session_state.pop("conflict_warnings", None)
         st.success(f"Added {pet_name.strip()}.")
@@ -116,6 +124,7 @@ if owner.pets:
                     start_date=start_date,
                 )
             )
+            owner.save_to_json()
             st.session_state.pop("daily_plan", None)
             st.session_state.pop("conflict_warnings", None)
             st.success(f"Added {task_title.strip()} for {selected_pet.name}.")
@@ -181,6 +190,7 @@ if owner.pets:
         if complete_submitted:
             completed_task = task_by_id[task_id]
             next_task = scheduler.mark_task_complete(completed_task)
+            owner.save_to_json()
             st.session_state.pop("daily_plan", None)
             st.session_state.pop("conflict_warnings", None)
             if next_task is not None:

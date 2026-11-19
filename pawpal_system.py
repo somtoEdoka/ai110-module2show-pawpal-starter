@@ -2,10 +2,50 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
+from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
+
+
+def _to_json_value(value: Any) -> Any:
+    """Convert supported Python values to JSON-compatible values."""
+    if isinstance(value, Enum):
+        return _to_json_value(value.value)
+    if isinstance(value, datetime):
+        return {"$pawpal_type": "datetime", "value": value.isoformat()}
+    if isinstance(value, date):
+        return {"$pawpal_type": "date", "value": value.isoformat()}
+    if isinstance(value, time):
+        return {"$pawpal_type": "time", "value": value.isoformat()}
+    if isinstance(value, dict):
+        return {key: _to_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_json_value(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    raise TypeError(f"Unsupported JSON value: {type(value).__name__}")
+
+
+def _from_json_value(value: Any) -> Any:
+    """Restore tagged date and time values from JSON-compatible data."""
+    if isinstance(value, list):
+        return [_from_json_value(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    value_type = value.get("$pawpal_type")
+    serialized_value = value.get("value")
+    if value_type == "datetime":
+        return datetime.fromisoformat(serialized_value)
+    if value_type == "date":
+        return date.fromisoformat(serialized_value)
+    if value_type == "time":
+        return time.fromisoformat(serialized_value)
+    return {key: _from_json_value(item) for key, item in value.items()}
 
 
 def _time_to_minutes(value: object) -> Optional[float]:
@@ -40,6 +80,42 @@ class Owner:
     preferences: Dict[str, Any] = field(default_factory=dict)
     pets: List[Pet] = field(default_factory=list)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Return the owner and nested pets/tasks as JSON-compatible data."""
+        return _to_json_value(
+            {
+                "name": self.name,
+                "available_minutes": self.available_minutes,
+                "preferences": self.preferences,
+                "pets": [pet.to_dict() for pet in self.pets],
+            }
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Owner:
+        """Build an owner and nested pets/tasks from serialized data."""
+        restored = _from_json_value(data)
+        return cls(
+            name=restored.get("name", ""),
+            available_minutes=int(restored.get("available_minutes", 0)),
+            preferences=restored.get("preferences", {}),
+            pets=[Pet.from_dict(pet) for pet in restored.get("pets", [])],
+        )
+
+    def save_to_json(self, filepath: str | Path = "data.json") -> None:
+        """Save this owner and its pets/tasks to a JSON file."""
+        with Path(filepath).open("w", encoding="utf-8") as file:
+            json.dump(self.to_dict(), file, indent=2, ensure_ascii=False)
+
+    @classmethod
+    def load_from_json(cls, filepath: str | Path = "data.json") -> Owner:
+        """Load an owner and its pets/tasks from a JSON file."""
+        with Path(filepath).open("r", encoding="utf-8") as file:
+            data = json.load(file)
+        if not isinstance(data, dict):
+            raise ValueError("PawPal data must be a JSON object.")
+        return cls.from_dict(data)
+
     def add_pet(self, pet: Pet) -> None:
         """Add a pet to the owner."""
         self.pets.append(pet)
@@ -62,6 +138,30 @@ class Pet:
     breed: str = ""
     age: int = 0
     tasks: List[Task] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return the pet and its tasks as JSON-compatible data."""
+        return _to_json_value(
+            {
+                "name": self.name,
+                "species": self.species,
+                "breed": self.breed,
+                "age": self.age,
+                "tasks": [task.to_dict() for task in self.tasks],
+            }
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Pet:
+        """Build a pet and its tasks from serialized data."""
+        restored = _from_json_value(data)
+        return cls(
+            name=restored.get("name", ""),
+            species=restored.get("species", ""),
+            breed=restored.get("breed", ""),
+            age=int(restored.get("age", 0)),
+            tasks=[Task.from_dict(task) for task in restored.get("tasks", [])],
+        )
 
     def add_task(self, task: Task) -> None:
         """Add a task to the pet."""
@@ -96,6 +196,48 @@ class Task:
     recurrence_days: list[int] = field(default_factory=list)
     completed: bool = False
     task_id: str = field(default_factory=lambda: uuid4().hex[:8])
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return this task as JSON-compatible data."""
+        return _to_json_value(
+            {
+                "title": self.title,
+                "category": self.category,
+                "duration_minutes": self.duration_minutes,
+                "priority": self.priority,
+                "preferred_time": self.preferred_time,
+                "recurrence": self.recurrence,
+                "start_date": self.start_date,
+                "recurrence_interval": self.recurrence_interval,
+                "recurrence_days": self.recurrence_days,
+                "completed": self.completed,
+                "task_id": self.task_id,
+            }
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Task:
+        """Build a task from serialized data."""
+        restored = _from_json_value(data)
+        preferred_time = restored.get("preferred_time")
+        start_date = restored.get("start_date")
+        if isinstance(preferred_time, str):
+            preferred_time = time.fromisoformat(preferred_time)
+        if isinstance(start_date, str):
+            start_date = date.fromisoformat(start_date)
+        return cls(
+            title=restored.get("title", ""),
+            category=restored.get("category", ""),
+            duration_minutes=int(restored.get("duration_minutes", 0)),
+            priority=restored.get("priority", "medium"),
+            preferred_time=preferred_time,
+            recurrence=restored.get("recurrence", "once"),
+            start_date=start_date,
+            recurrence_interval=int(restored.get("recurrence_interval", 1)),
+            recurrence_days=list(restored.get("recurrence_days", [])),
+            completed=bool(restored.get("completed", False)),
+            task_id=restored.get("task_id", uuid4().hex[:8]),
+        )
 
     def mark_complete(self) -> None:
         """Mark the task as completed."""
