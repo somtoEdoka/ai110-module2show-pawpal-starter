@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, time
+from datetime import date, datetime, time
 from typing import Any, Dict, List, Optional, Tuple
+from uuid import uuid4
 
 
 @dataclass
@@ -62,7 +63,11 @@ class Task:
     priority: str = "medium"
     preferred_time: Optional[time] = None
     recurrence: str = "once"
+    start_date: Optional[date] = None
+    recurrence_interval: int = 1
+    recurrence_days: list[int] = field(default_factory=list)
     completed: bool = False
+    task_id: str = field(default_factory=lambda: uuid4().hex[:8])
 
     def mark_complete(self) -> None:
         """Mark the task as completed."""
@@ -80,6 +85,9 @@ class Task:
         priority: Optional[str] = None,
         preferred_time: Optional[time] = None,
         recurrence: Optional[str] = None,
+        start_date: Optional[date] = None,
+        recurrence_interval: Optional[int] = None,
+        recurrence_days: Optional[list[int]] = None,
         completed: Optional[bool] = None,
     ) -> None:
         """Update any supplied task details."""
@@ -91,8 +99,8 @@ class ScheduledItem:
     """Represent a task placed in a time slot in a daily plan."""
 
     task: Task = field(default_factory=Task)
-    start_time: time = field(default_factory=time)
-    end_time: time = field(default_factory=time)
+    start_time: datetime = field(default_factory=datetime.now)
+    end_time: datetime = field(default_factory=datetime.now)
     reason: str = ""
 
     def overlaps_with(self, other: ScheduledItem) -> bool:
@@ -129,6 +137,8 @@ class Scheduler:
 
     owner: Owner = field(default_factory=Owner)
     buffer_minutes: int = 0
+    day_start: time = time(8, 0)
+    day_end: time = time(20, 0)
 
     def generate_plan(self, target_date: date) -> DailyPlan:
         """Generate a daily plan for target_date."""

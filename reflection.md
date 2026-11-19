@@ -2,15 +2,17 @@
 
 ## 1. System Design
     Three core tasks include: add a pet, schedule a walk, see today's tasks
-**a. Initial design**
+**1a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+The initial design separates pet and owner data from task details and scheduling. `Owner` keeps the owner's availability, preferences, and pets; `Pet` stores pet information and its tasks; `Task` represents a care activity and its scheduling attributes. `ScheduledItem` represents a task placed in a time slot, `DailyPlan` collects scheduled and skipped tasks for a pet and date, and `Scheduler` generates plans and explains scheduling decisions.
 
-**b. Design changes**
+**1b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+The AI review highlighted three gaps, so the skeleton was refined before implementing scheduling logic:
+
+- Added a generated `task_id` so tasks can be identified reliably for tracking and removal.
+- Added `start_date`, `recurrence_interval`, and `recurrence_days` so daily, weekly, and custom recurrence rules have enough metadata to determine due dates.
+- Changed scheduled item boundaries to `datetime` and added an 8:00–20:00 scheduler window. These provide an unambiguous date-and-time basis for duration, buffer, overnight, and overlap checks, while making the planning window explicit.
 
 ---
 
