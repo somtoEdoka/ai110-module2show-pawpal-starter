@@ -359,6 +359,31 @@ class Scheduler:
             ),
         )
 
+    def find_next_available_slot(
+        self, target_date: date, duration_minutes: int
+    ) -> Optional[datetime]:
+        """Find the earliest window that fits between scheduled items."""
+        if duration_minutes <= 0:
+            return None
+
+        plan = self.generate_plan(target_date)
+        candidate_start = datetime.combine(target_date, self.day_start)
+        day_end = datetime.combine(target_date, self.day_end)
+        duration = timedelta(minutes=duration_minutes)
+        buffer = timedelta(minutes=max(0, int(self.buffer_minutes)))
+
+        scheduled_items = sorted(
+            plan.scheduled_items, key=lambda item: item.start_time
+        )
+        for item in scheduled_items:
+            if candidate_start + duration + buffer <= item.start_time:
+                return candidate_start
+            candidate_start = max(candidate_start, item.end_time + buffer)
+
+        if candidate_start + duration <= day_end:
+            return candidate_start
+        return None
+
     def filter_tasks(
         self,
         pet_name: Optional[str] = None,

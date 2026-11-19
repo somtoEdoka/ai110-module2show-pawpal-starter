@@ -1,6 +1,6 @@
 """Unit tests for PawPal+ task and pet behavior."""
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from pawpal_system import Owner, Pet, Scheduler, Task
 
@@ -174,3 +174,55 @@ def test_task_exceeding_available_minutes_is_skipped():
     assert plan.scheduled_items == []
     assert plan.skipped_tasks == [(task, "Not enough available time")]
     assert plan.total_minutes_scheduled == 0
+
+
+def test_find_next_available_slot_returns_gap_between_scheduled_tasks():
+    pet = Pet(
+        name="Biscuit",
+        tasks=[
+            Task(
+                title="Morning walk",
+                duration_minutes=30,
+                preferred_time=time(8, 0),
+            ),
+            Task(
+                title="Training",
+                duration_minutes=20,
+                preferred_time=time(10, 0),
+            ),
+        ],
+    )
+    scheduler = Scheduler(
+        Owner(available_minutes=60, pets=[pet]),
+        buffer_minutes=10,
+    )
+
+    slot = scheduler.find_next_available_slot(date(2026, 11, 19), 30)
+
+    assert slot == datetime(2026, 11, 19, 8, 40)
+
+
+def test_find_next_available_slot_returns_none_when_day_is_full():
+    pet = Pet(
+        name="Biscuit",
+        tasks=[
+            Task(
+                title="All-day care",
+                duration_minutes=12 * 60,
+                preferred_time=time(8, 0),
+            )
+        ],
+    )
+    scheduler = Scheduler(Owner(available_minutes=12 * 60, pets=[pet]))
+
+    slot = scheduler.find_next_available_slot(date(2026, 11, 19), 1)
+
+    assert slot is None
+
+
+def test_find_next_available_slot_starts_at_configured_day_start():
+    scheduler = Scheduler(day_start=time(9, 0), day_end=time(10, 0))
+
+    slot = scheduler.find_next_available_slot(date(2026, 11, 19), 60)
+
+    assert slot == datetime(2026, 11, 19, 9, 0)

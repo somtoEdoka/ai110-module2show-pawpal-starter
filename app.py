@@ -197,6 +197,27 @@ st.divider()
 st.subheader("Today's schedule")
 st.caption(f"Plan date: {date.today().strftime('%B %d, %Y')}")
 
+with st.form("find_next_available_slot"):
+    slot_duration = st.number_input(
+        "Find an available slot for (minutes)",
+        min_value=1,
+        max_value=720,
+        value=30,
+    )
+    find_slot_submitted = st.form_submit_button("Find Next Available Slot")
+
+if find_slot_submitted:
+    available_slot = scheduler.find_next_available_slot(
+        date.today(), int(slot_duration)
+    )
+    if available_slot is None:
+        st.warning("No available slot fits that duration today.")
+    else:
+        st.success(
+            f"Next available {int(slot_duration)}-minute slot starts at "
+            f"{available_slot.strftime('%H:%M')}."
+        )
+
 if st.button("Generate today's schedule"):
     target_date = date.today()
     due_tasks = scheduler.filter_due_tasks(owner.get_all_tasks(), target_date)
