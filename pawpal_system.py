@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
@@ -19,15 +19,15 @@ class Owner:
 
     def add_pet(self, pet: Pet) -> None:
         """Add a pet to the owner."""
-        raise NotImplementedError
+        self.pets.append(pet)
 
     def get_all_tasks(self) -> List[Task]:
         """Return all tasks belonging to the owner's pets."""
-        raise NotImplementedError
+        return [task for pet in self.pets for task in pet.tasks]
 
     def update_availability(self, minutes: int) -> None:
         """Update the owner's available minutes."""
-        raise NotImplementedError
+        self.available_minutes = max(0, int(minutes))
 
 
 @dataclass
@@ -42,15 +42,20 @@ class Pet:
 
     def add_task(self, task: Task) -> None:
         """Add a task to the pet."""
-        raise NotImplementedError
+        self.tasks.append(task)
 
     def remove_task(self, task_id: str) -> None:
         """Remove a task identified by task_id."""
-        raise NotImplementedError
+        self.tasks = [task for task in self.tasks if task.task_id != task_id]
 
     def get_tasks_by_priority(self, priority: str) -> List[Task]:
         """Return tasks matching the requested priority."""
-        raise NotImplementedError
+        requested_priority = priority.strip().lower()
+        return [
+            task
+            for task in self.tasks
+            if task.priority.strip().lower() == requested_priority
+        ]
 
 
 @dataclass
@@ -71,11 +76,77 @@ class Task:
 
     def mark_complete(self) -> None:
         """Mark the task as completed."""
-        raise NotImplementedError
+        self.completed = True
 
     def is_due_today(self, target_date: date) -> bool:
         """Return whether the task is due on target_date."""
-        raise NotImplementedError
+        recurrence = self.recurrence.strip().lower()
+        start = self.start_date
+
+        if recurrence == "once":
+            return True if start is None else target_date == start
+
+        if start is not None and target_date < start:
+            return False
+
+        interval = max(1, int(self.recurrence_interval or 1))
+
+        if recurrence == "daily":
+            if start is None:
+                return True
+            return (target_date - start).days % interval == 0
+
+        if recurrence == "weekly":
+            if not self.recurrence_days:
+                if start is None:
+                    return True
+                if target_date.weekday() != start.weekday():
+                    return False
+                start_monday = start - timedelta(days=start.weekday())
+                target_monday = target_date - timedelta(days=target_date.weekday())
+                week_difference = (target_monday - start_monday).days // 7
+                return week_difference % interval == 0
+
+            allowed_weekdays: set[int] = set()
+            day_names = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6,
+                "mon": 0,
+                "tue": 1,
+                "wed": 2,
+                "thu": 3,
+                "fri": 4,
+                "sat": 5,
+                "sun": 6,
+            }
+            for value in self.recurrence_days:
+                if isinstance(value, str):
+                    weekday = day_names.get(value.strip().lower())
+                    if weekday is not None:
+                        allowed_weekdays.add(weekday)
+                elif isinstance(value, int):
+                    if 0 <= value <= 6:
+                        allowed_weekdays.add(value)
+                    elif 1 <= value <= 7:
+                        allowed_weekdays.add(value - 1)
+
+            if target_date.weekday() not in allowed_weekdays:
+                return False
+
+            if start is not None:
+                start_monday = start - timedelta(days=start.weekday())
+                target_monday = target_date - timedelta(days=target_date.weekday())
+                week_difference = (target_monday - start_monday).days // 7
+                return week_difference % interval == 0
+
+            return True
+
+        return False
 
     def update_details(
         self,
@@ -91,7 +162,26 @@ class Task:
         completed: Optional[bool] = None,
     ) -> None:
         """Update any supplied task details."""
-        raise NotImplementedError
+        if title is not None:
+            self.title = title
+        if category is not None:
+            self.category = category
+        if duration_minutes is not None:
+            self.duration_minutes = duration_minutes
+        if priority is not None:
+            self.priority = priority
+        if preferred_time is not None:
+            self.preferred_time = preferred_time
+        if recurrence is not None:
+            self.recurrence = recurrence
+        if start_date is not None:
+            self.start_date = start_date
+        if recurrence_interval is not None:
+            self.recurrence_interval = recurrence_interval
+        if recurrence_days is not None:
+            self.recurrence_days = recurrence_days
+        if completed is not None:
+            self.completed = completed
 
 
 @dataclass
@@ -105,11 +195,15 @@ class ScheduledItem:
 
     def overlaps_with(self, other: ScheduledItem) -> bool:
         """Return whether this scheduled item overlaps another item."""
-        raise NotImplementedError
+        return self.start_time < other.end_time and other.start_time < self.end_time
 
     def format_display(self) -> str:
         """Return a display-friendly description of the scheduled item."""
-        raise NotImplementedError
+        duration = max(0, int((self.end_time - self.start_time).total_seconds() // 60))
+        return (
+            f"{self.start_time.strftime('%H:%M')} — {self.task.title} "
+            f"({duration} min) [priority: {self.task.priority.lower()}]"
+        )
 
 
 @dataclass
@@ -124,11 +218,36 @@ class DailyPlan:
 
     def get_summary(self) -> str:
         """Return a summary of the daily plan."""
-        raise NotImplementedError
+        if self.pet_name:
+            lines = [f"Daily plan for {self.pet_name} on {self.date.isoformat()}:"]
+        else:
+            lines = [f"Daily plan for {self.date.isoformat()}:"]
+
+        if self.scheduled_items:
+            lines.extend(
+                f"  {item.format_display()}" for item in self.scheduled_items
+            )
+        else:
+            lines.append("  No tasks scheduled.")
+
+        lines.append(f"Total scheduled: {self.total_minutes_scheduled} minutes")
+
+        if self.skipped_tasks:
+            lines.append("Skipped tasks:")
+            lines.extend(
+                f"  {task.title} — {reason}" for task, reason in self.skipped_tasks
+            )
+
+        return "\n".join(lines)
 
     def get_conflicts(self) -> List[Tuple[ScheduledItem, ScheduledItem]]:
         """Return pairs of scheduled items that conflict."""
-        raise NotImplementedError
+        conflicts: List[Tuple[ScheduledItem, ScheduledItem]] = []
+        for index, item in enumerate(self.scheduled_items):
+            for other in self.scheduled_items[index + 1 :]:
+                if item.overlaps_with(other):
+                    conflicts.append((item, other))
+        return conflicts
 
 
 @dataclass
@@ -142,17 +261,80 @@ class Scheduler:
 
     def generate_plan(self, target_date: date) -> DailyPlan:
         """Generate a daily plan for target_date."""
-        raise NotImplementedError
+        tasks = self.owner.get_all_tasks()
+        due_tasks = self.filter_due_tasks(tasks, target_date)
+        ordered_tasks = self.sort_tasks(due_tasks)
+
+        pet_names = [pet.name for pet in self.owner.pets if pet.name]
+        pet_name = ", ".join(pet_names)
+        plan = DailyPlan(date=target_date, pet_name=pet_name)
+
+        remaining_minutes = max(0, int(self.owner.available_minutes))
+        start_datetime = datetime.combine(target_date, self.day_start)
+        end_datetime = datetime.combine(target_date, self.day_end)
+        cursor = start_datetime
+
+        for task in ordered_tasks:
+            duration = int(task.duration_minutes)
+            if duration <= 0:
+                plan.skipped_tasks.append((task, "Invalid duration"))
+                continue
+
+            if duration > remaining_minutes:
+                plan.skipped_tasks.append(
+                    (task, "Not enough available time")
+                )
+                continue
+
+            if task.preferred_time is not None:
+                preferred = datetime.combine(target_date, task.preferred_time)
+                if preferred > cursor:
+                    candidate_start = preferred
+                else:
+                    candidate_start = cursor
+            else:
+                candidate_start = cursor
+
+            candidate_end = candidate_start + timedelta(minutes=duration)
+            if candidate_start < start_datetime or candidate_end > end_datetime:
+                plan.skipped_tasks.append(
+                    (task, "Outside the planning window")
+                )
+                continue
+
+            item = ScheduledItem(
+                task=task,
+                start_time=candidate_start,
+                end_time=candidate_end,
+                reason=self.explain_decision(task, "scheduled"),
+            )
+            plan.scheduled_items.append(item)
+            plan.total_minutes_scheduled += duration
+            remaining_minutes -= duration
+            cursor = candidate_end + timedelta(minutes=max(0, int(self.buffer_minutes)))
+
+        return plan
 
     def sort_tasks(self, tasks: List[Task]) -> List[Task]:
         """Return tasks in scheduling order."""
-        raise NotImplementedError
+        priority_rank = {"high": 0, "medium": 1, "low": 2}
+
+        def sort_key(task: Task) -> Tuple[int, time, str]:
+            priority = priority_rank.get(task.priority.strip().lower(), 3)
+            preferred = task.preferred_time or time(23, 59)
+            return priority, preferred, task.title.lower()
+
+        return sorted(tasks, key=sort_key)
 
     def filter_due_tasks(
         self, tasks: List[Task], target_date: date
     ) -> List[Task]:
         """Return tasks due on target_date."""
-        raise NotImplementedError
+        return [
+            task
+            for task in tasks
+            if not task.completed and task.is_due_today(target_date)
+        ]
 
     def resolve_conflict(
         self,
@@ -160,8 +342,27 @@ class Scheduler:
         item_b: ScheduledItem,
     ) -> ScheduledItem:
         """Resolve a conflict between two scheduled items."""
-        raise NotImplementedError
+        if not item_a.overlaps_with(item_b):
+            return item_a if item_a.start_time <= item_b.start_time else item_b
+
+        priority_rank = {"high": 0, "medium": 1, "low": 2}
+        rank_a = priority_rank.get(item_a.task.priority.strip().lower(), 3)
+        rank_b = priority_rank.get(item_b.task.priority.strip().lower(), 3)
+        if rank_a != rank_b:
+            return item_a if rank_a < rank_b else item_b
+        if item_a.start_time != item_b.start_time:
+            return item_a if item_a.start_time < item_b.start_time else item_b
+        return item_a if item_a.task.task_id <= item_b.task.task_id else item_b
 
     def explain_decision(self, task: Task, status: str) -> str:
         """Explain why a task received its scheduling status."""
-        raise NotImplementedError
+        normalized_status = status.strip().lower()
+        if normalized_status == "scheduled":
+            return (
+                f"{task.title} fits within the available time and planning window."
+            )
+        if "time" in normalized_status:
+            return f"{task.title} was skipped because not enough time is available."
+        if "window" in normalized_status:
+            return f"{task.title} was skipped because it falls outside the planning window."
+        return f"{task.title} was marked {normalized_status}."
