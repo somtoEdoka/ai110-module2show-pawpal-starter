@@ -1,7 +1,7 @@
 # PawPal+ Project Reflection
 
 ## 1. System Design
-
+    Three core tasks include: add a pet, schedule a walk, see today's tasks
 **a. Initial design**
 
 - Briefly describe your initial UML design.
