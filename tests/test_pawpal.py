@@ -49,6 +49,27 @@ def test_sort_by_time_handles_time_strings_and_unscheduled_tasks():
     ]
 
 
+def test_sort_by_priority_and_time_prioritizes_high_tasks_before_earlier_tasks():
+    scheduler = Scheduler()
+    tasks = [
+        Task(title="Low morning", priority="low", preferred_time=time(7, 0)),
+        Task(title="High evening", priority="high", preferred_time=time(18, 0)),
+        Task(title="Medium morning", priority="medium", preferred_time=time(8, 0)),
+        Task(title="High unscheduled", priority="high"),
+        Task(title="Low unscheduled", priority="low"),
+    ]
+
+    sorted_tasks = scheduler.sort_by_priority_and_time(tasks)
+
+    assert [task.title for task in sorted_tasks] == [
+        "High evening",
+        "High unscheduled",
+        "Medium morning",
+        "Low morning",
+        "Low unscheduled",
+    ]
+
+
 def test_filter_tasks_by_pet_and_completion():
     pet = Pet(name="Biscuit")
     pet.add_task(Task(title="Walk"))

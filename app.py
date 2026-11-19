@@ -7,6 +7,35 @@ from pawpal_system import Owner, Pet, Scheduler, Task
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
+CATEGORY_EMOJIS = {
+    "exercise": "🐕",
+    "feeding": "🍽️",
+    "health": "💊",
+    "grooming": "🧼",
+    "enrichment": "🎾",
+}
+CATEGORY_LABELS = {
+    "exercise": "Walk / Exercise",
+    "feeding": "Feeding",
+    "health": "Medication / Health",
+    "grooming": "Grooming",
+    "enrichment": "Enrichment",
+}
+
+
+def category_label(category: str) -> str:
+    """Return a category with its matching visual indicator."""
+    normalized = category.strip().lower()
+    emoji = CATEGORY_EMOJIS.get(normalized, "🐾")
+    label = CATEGORY_LABELS.get(normalized, category.title() or "Other")
+    return f"{emoji} {label}"
+
+
+def task_status(completed: bool) -> str:
+    """Return a readable status badge."""
+    return "✅ Completed" if completed else "⏳ Pending"
+
+
 if "owner" not in st.session_state:
     data_file = Path("data.json")
     st.session_state.owner = (
@@ -156,7 +185,7 @@ if owner.pets:
                 {
                     "Pet": task_pet_names[task.task_id],
                     "Task": task.title,
-                    "Category": task.category,
+                    "Category": category_label(task.category),
                     "Duration (min)": task.duration_minutes,
                     "Priority": task.priority.title(),
                     "Preferred time": (
@@ -165,7 +194,7 @@ if owner.pets:
                         else task.preferred_time or "Unscheduled"
                     ),
                     "Recurrence": task.recurrence.title(),
-                    "Status": "Completed" if task.completed else "Pending",
+                    "Status": task_status(task.completed),
                 }
                 for task in scheduler.sort_by_time(visible_tasks)
             ]
@@ -195,11 +224,11 @@ if owner.pets:
             st.session_state.pop("conflict_warnings", None)
             if next_task is not None:
                 st.success(
-                    f"Completed {completed_task.title}. Its next occurrence is "
+                    f"✅ Completed {completed_task.title}. Its next occurrence is "
                     f"{next_task.start_date.isoformat()}."
                 )
             else:
-                st.success(f"Completed {completed_task.title}.")
+                st.success(f"✅ Completed {completed_task.title}.")
 else:
     st.info("Add a pet before adding care tasks.")
 
@@ -241,13 +270,13 @@ if "daily_plan" in st.session_state:
     st.metric("Total time scheduled", f"{plan.total_minutes_scheduled} min")
 
     if st.session_state.get("conflict_warnings"):
-        st.markdown("**Preferred-time conflicts**")
+        st.markdown("**⚠️ Preferred-time conflicts**")
         st.caption(
             "These preferred times overlap. Adjust a task's preferred time or "
             "duration; PawPal+ does not change your preferences automatically."
         )
         for warning in st.session_state.conflict_warnings:
-            st.warning(warning)
+            st.warning(f"⚠️ {warning}")
 
     if plan.scheduled_items:
         st.markdown("**Scheduled tasks**")
@@ -259,10 +288,12 @@ if "daily_plan" in st.session_state:
                         f"{item.end_time.strftime('%H:%M')}"
                     ),
                     "Task": item.task.title,
+                    "Category": category_label(item.task.category),
                     "Duration (min)": int(
                         (item.end_time - item.start_time).total_seconds() // 60
                     ),
                     "Priority": item.task.priority.title(),
+                    "Status": task_status(item.task.completed),
                     "Reasoning": item.reason,
                 }
                 for item in plan.scheduled_items
@@ -275,7 +306,12 @@ if "daily_plan" in st.session_state:
         st.markdown("**Skipped tasks**")
         st.table(
             [
-                {"Task": task.title, "Reason": reason}
+                {
+                    "Task": task.title,
+                    "Category": category_label(task.category),
+                    "Status": task_status(task.completed),
+                    "Reason": reason,
+                }
                 for task, reason in plan.skipped_tasks
             ]
         )

@@ -63,11 +63,13 @@ python -m pytest
 
 The automated test suite covers:
 
-- Sorting tasks chronologically, including unscheduled tasks.
+- Sorting tasks chronologically and by priority/time, including unscheduled tasks.
 - Filtering tasks by pet name and completion status.
 - Creating the next daily and weekly recurrence when a task is completed.
 - Detecting duplicate and overlapping task times.
 - Edge cases including pets with no tasks, an empty schedule, and tasks exceeding available time.
+- Finding the next available slot, including gaps, full days, and custom planning windows.
+- JSON persistence round trips for owners, pets, tasks, and temporal values.
 
 Passing verbose test run (`python -m pytest -v`):
 
@@ -77,22 +79,27 @@ platform linux -- Python 3.14.2, pytest-9.2.0, pluggy-1.7.0 -- /home/codespace/.
 cachedir: .pytest_cache
 rootdir: /workspaces/ai110-module2show-pawpal-starter
 plugins: platformdirs-4.14.0, anyio-4.15.1
-collecting ... collected 12 items
+collecting ... collected 17 items
 
-tests/test_pawpal.py::test_task_mark_complete PASSED                     [  8%]
-tests/test_pawpal.py::test_pet_add_task PASSED                           [ 16%]
-tests/test_pawpal.py::test_sort_by_time_handles_time_strings_and_unscheduled_tasks PASSED [ 25%]
-tests/test_pawpal.py::test_filter_tasks_by_pet_and_completion PASSED     [ 33%]
-tests/test_pawpal.py::test_mark_recurring_task_complete_adds_next_occurrence_to_same_pet PASSED [ 41%]
-tests/test_pawpal.py::test_mark_weekly_task_complete_advances_one_week PASSED [ 50%]
-tests/test_pawpal.py::test_detect_conflicts_reports_same_start_and_overlapping_slots PASSED [ 58%]
-tests/test_pawpal.py::test_detect_conflicts_ignores_tasks_on_different_dates PASSED [ 66%]
-tests/test_pawpal.py::test_filter_tasks_by_pet_or_completion_independently PASSED [ 75%]
-tests/test_pawpal.py::test_pet_with_zero_tasks_has_an_empty_plan PASSED  [ 83%]
-tests/test_pawpal.py::test_empty_schedule_without_pets_has_no_conflicts PASSED [ 91%]
-tests/test_pawpal.py::test_task_exceeding_available_minutes_is_skipped PASSED [100%]
+tests/test_pawpal.py::test_task_mark_complete PASSED                     [  5%]
+tests/test_pawpal.py::test_pet_add_task PASSED                           [ 11%]
+tests/test_pawpal.py::test_sort_by_time_handles_time_strings_and_unscheduled_tasks PASSED [ 17%]
+tests/test_pawpal.py::test_sort_by_priority_and_time_prioritizes_high_tasks_before_earlier_tasks PASSED [ 23%]
+tests/test_pawpal.py::test_filter_tasks_by_pet_and_completion PASSED     [ 29%]
+tests/test_pawpal.py::test_mark_recurring_task_complete_adds_next_occurrence_to_same_pet PASSED [ 35%]
+tests/test_pawpal.py::test_mark_weekly_task_complete_advances_one_week PASSED [ 41%]
+tests/test_pawpal.py::test_detect_conflicts_reports_same_start_and_overlapping_slots PASSED [ 47%]
+tests/test_pawpal.py::test_detect_conflicts_ignores_tasks_on_different_dates PASSED [ 52%]
+tests/test_pawpal.py::test_filter_tasks_by_pet_or_completion_independently PASSED [ 58%]
+tests/test_pawpal.py::test_pet_with_zero_tasks_has_an_empty_plan PASSED  [ 64%]
+tests/test_pawpal.py::test_empty_schedule_without_pets_has_no_conflicts PASSED [ 70%]
+tests/test_pawpal.py::test_task_exceeding_available_minutes_is_skipped PASSED [ 76%]
+tests/test_pawpal.py::test_find_next_available_slot_returns_gap_between_scheduled_tasks PASSED [ 82%]
+tests/test_pawpal.py::test_find_next_available_slot_returns_none_when_day_is_full PASSED [ 88%]
+tests/test_pawpal.py::test_find_next_available_slot_starts_at_configured_day_start PASSED [ 94%]
+tests/test_pawpal.py::test_owner_json_round_trip_preserves_pet_tasks_and_temporal_values PASSED [100%]
 
-============================== 12 passed in 0.03s ==============================
+============================== 17 passed in 0.09s ==============================
 ```
 
 **Confidence Level:** ⭐⭐⭐⭐⭐ 5/5 stars — The suite verifies the key scheduling behaviors and edge cases, and all 12 tests passed.
@@ -107,6 +114,37 @@ tests/test_pawpal.py::test_task_exceeding_available_minutes_is_skipped PASSED [1
 - **Time-budget scheduling:** `Scheduler.generate_plan()` considers due tasks, priority, preferred time, available minutes, an optional buffer, and the 08:00–20:00 planning window. It reports scheduled time and explains skipped tasks.
 - **Next available slot:** `Scheduler.find_next_available_slot()` finds the earliest slot for a requested duration while respecting existing scheduled items, the planning window, and the configured buffer.
 - **JSON persistence:** Owner, pet, and task information is loaded from and saved to `data.json`.
+
+### Priority-Based Scheduling
+
+`Scheduler.sort_by_priority_and_time()` orders tasks High → Medium → Low, then by preferred time within each priority; unscheduled tasks appear last within their priority. The generated plan follows this priority-first ordering while respecting preferred times, the available-minute budget, and the planning window.
+
+The CLI displays the generated schedule as a priority-ordered table. Run `python main.py` to see the current output:
+
+```text
+Today's Schedule — 2026-11-19
+╒═════════════╤═════════╤══════════════╤════════════════════════╤════════════╤════════════╕
+│ Time        │ Pet     │ Task         │ Category               │ Priority   │ Status     │
+╞═════════════╪═════════╪══════════════╪════════════════════════╪════════════╪════════════╡
+│ 08:00–08:30 │ Biscuit │ Morning walk │ 🐕 Walk / Exercise     │ High       │ ⏳ Pending │
+├─────────────┼─────────┼──────────────┼────────────────────────┼────────────┼────────────┤
+│ 09:30–09:50 │ Mochi   │ Play session │ 🎾 Enrichment          │ High       │ ⏳ Pending │
+├─────────────┼─────────┼──────────────┼────────────────────────┼────────────┼────────────┤
+│ 10:00–10:15 │ Biscuit │ Training     │ 🎾 Enrichment          │ Medium     │ ⏳ Pending │
+├─────────────┼─────────┼──────────────┼────────────────────────┼────────────┼────────────┤
+│ 18:00–18:15 │ Biscuit │ Dinner       │ 🍽️ Feeding             │ Medium     │ ⏳ Pending │
+├─────────────┼─────────┼──────────────┼────────────────────────┼────────────┼────────────┤
+│ 18:25–18:35 │ Mochi   │ Medication   │ 💊 Medication / Health │ Low        │ ⏳ Pending │
+╘═════════════╧═════════╧══════════════╧════════════════════════╧════════════╧════════════╛
+Total scheduled: 90 minutes
+```
+
+### UI & Output Formatting
+
+- Task categories use `🐕` for walks/exercise, `🍽️` for feeding, `💊` for medication/health, `🧼` for grooming, and `🎾` for enrichment; other categories use `🐾`.
+- Status labels use `✅ Completed` and `⏳ Pending`. Schedule conflicts are marked with `⚠️ Conflict`.
+- The Streamlit UI includes these labels in task and schedule tables and displays conflicts as prominent warnings.
+- The CLI uses `tabulate.tabulate(..., tablefmt="fancy_grid")` to render structured schedule and task tables.
 
 ## 💾 Data Persistence
 
@@ -128,37 +166,6 @@ Persistence changes involve:
 2. Add care tasks with a category, duration, priority, start date, recurrence, and optional preferred time.
 3. Generate today's schedule. Review the time-budgeted plan, total scheduled minutes, explanations, and skipped tasks. The task list is sorted by preferred time; overlapping preferences appear as warnings that identify the tasks and suggest adjusting a time or duration.
 4. Mark a recurring task complete. PawPal+ confirms completion and displays the date of the automatically created next occurrence.
-5. Use the pet and status filters to review all, pending, or completed tasks. For a terminal demonstration of sorting, filtering, recurrence, and conflict detection, run `python main.py`.
-
-Sample CLI output from `python main.py`:
-
-```text
-Today's Schedule
-================
-Daily plan for Biscuit, Mochi on 2026-11-19:
-  08:00 — Morning walk (30 min) [priority: high]
-  09:30 — Play session (20 min) [priority: high]
-  10:00 — Training (15 min) [priority: medium]
-  18:00 — Dinner (15 min) [priority: medium]
-  18:25 — Medication (10 min) [priority: low]
-Total scheduled: 90 minutes
-
-Tasks sorted by preferred time
-  08:00 — Morning walk
-  09:30 — Training
-  09:30 — Play session
-  12:00 — Medication
-  18:00 — Dinner
-
-Uncompleted tasks for Biscuit
-  Dinner
-  Morning walk
-  Training
-
-Completed Dinner; next occurrence: 2026-11-20
-
-Conflict warnings
-  Conflict: 'Training' (09:30:00) and 'Play session' (09:30:00) have overlapping time slots.
-```
+5. Use the pet and status filters to review all, pending, or completed tasks. For a terminal demonstration of priority scheduling, category icons, statuses, recurrence, and conflict detection, run `python main.py` and see the table under **Priority-Based Scheduling** above.
 
 The final class diagram is available in [`diagrams/uml_final.mmd`](./diagrams/uml_final.mmd).

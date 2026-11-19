@@ -501,6 +501,20 @@ class Scheduler:
             ),
         )
 
+    def sort_by_priority_and_time(self, tasks: List[Task]) -> List[Task]:
+        """Sort tasks by priority, then preferred time with unscheduled tasks last."""
+        priority_rank = {"high": 0, "medium": 1, "low": 2}
+
+        def sort_key(task: Task) -> Tuple[int, bool, float]:
+            preferred_minutes = _time_to_minutes(task.preferred_time)
+            return (
+                priority_rank.get(task.priority.strip().lower(), 3),
+                preferred_minutes is None,
+                preferred_minutes or 0,
+            )
+
+        return sorted(tasks, key=sort_key)
+
     def find_next_available_slot(
         self, target_date: date, duration_minutes: int
     ) -> Optional[datetime]:
