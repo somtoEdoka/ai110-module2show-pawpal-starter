@@ -1,0 +1,70 @@
+classDiagram
+    class Owner {
+        +str name
+        +int available_minutes
+        +dict preferences
+        +list~Pet~ pets
+        +add_pet(pet: Pet) None
+        +get_all_tasks() list~Task~
+        +update_availability(minutes: int) None
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +int age
+        +list~Task~ tasks
+        +add_task(task: Task) None
+        +remove_task(task_id: str) None
+        +get_tasks_by_priority(priority: str) list~Task~
+    }
+
+    class Task {
+        +str title
+        +str category
+        +int duration_minutes
+        +str priority
+        +Optional~time~ preferred_time
+        +str recurrence
+        +bool completed
+        +mark_complete() None
+        +is_due_today(target_date: date) bool
+        +update_details(...) None
+    }
+
+    class ScheduledItem {
+        +Task task
+        +time start_time
+        +time end_time
+        +str reason
+        +overlaps_with(other: ScheduledItem) bool
+        +format_display() str
+    }
+
+    class DailyPlan {
+        +date date
+        +str pet_name
+        +list~ScheduledItem~ scheduled_items
+        +list~tuple~ skipped_tasks
+        +int total_minutes_scheduled
+        +get_summary() str
+        +get_conflicts() list~tuple~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +int buffer_minutes
+        +generate_plan(target_date: date) DailyPlan
+        +sort_tasks(tasks: list~Task~) list~Task~
+        +filter_due_tasks(tasks: list~Task~, target_date: date) list~Task~
+        +resolve_conflict(item_a: ScheduledItem, item_b: ScheduledItem) ScheduledItem
+        +explain_decision(task: Task, status: str) str
+    }
+
+    Owner "1" o-- "1..*" Pet : owns
+    Pet "1" *-- "0..*" Task : has
+    Scheduler ..> Owner : reads constraints
+    Scheduler ..> DailyPlan : generates
+    DailyPlan "1" *-- "0..*" ScheduledItem : contains
+    ScheduledItem "0..*" --> "1" Task : schedules
