@@ -16,6 +16,17 @@ def main() -> None:
 
     dog.add_task(
         Task(
+            title="Dinner",
+            category="feeding",
+            duration_minutes=15,
+            priority="medium",
+            preferred_time=time(18, 0),
+            recurrence="daily",
+            start_date=today,
+        )
+    )
+    dog.add_task(
+        Task(
             title="Morning walk",
             category="exercise",
             duration_minutes=30,
@@ -27,12 +38,12 @@ def main() -> None:
     )
     dog.add_task(
         Task(
-            title="Dinner",
-            category="feeding",
+            title="Training",
+            category="enrichment",
             duration_minutes=15,
             priority="medium",
-            preferred_time=time(18, 0),
-            recurrence="daily",
+            preferred_time=time(9, 30),
+            recurrence="once",
             start_date=today,
         )
     )
@@ -68,6 +79,30 @@ def main() -> None:
     print("Today's Schedule")
     print("================")
     print(plan.get_summary())
+
+    print("\nTasks sorted by preferred time")
+    for task in scheduler.sort_by_time(owner.get_all_tasks()):
+        preferred_time = task.preferred_time
+        if isinstance(preferred_time, time):
+            preferred_time = preferred_time.strftime("%H:%M")
+        else:
+            preferred_time = preferred_time or "unscheduled"
+        print(f"  {preferred_time} — {task.title}")
+
+    print("\nUncompleted tasks for Biscuit")
+    for task in scheduler.filter_tasks(pet_name="Biscuit", completed=False):
+        print(f"  {task.title}")
+
+    next_dinner = scheduler.mark_task_complete(dog.tasks[0])
+    if next_dinner is not None:
+        print(
+            f"\nCompleted {dog.tasks[0].title}; next occurrence: "
+            f"{next_dinner.start_date.isoformat()}"
+        )
+
+    print("\nConflict warnings")
+    for warning in scheduler.detect_conflicts():
+        print(f"  {warning}")
 
 
 if __name__ == "__main__":

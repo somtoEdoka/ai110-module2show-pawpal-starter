@@ -25,8 +25,8 @@ The AI review highlighted three gaps, so the skeleton was refined before impleme
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+- `Scheduler.detect_conflicts()` reports overlapping preferred-time slots as warnings instead of automatically moving tasks. This keeps owners in control of their preferences, though they must resolve conflicts themselves.
+- Sorting uses a multiline `sorted(..., key=lambda ...)` rather than compressing the fallback and ordering logic into a denser one-liner. The key is straightforward to follow, though it currently parses each task's time twice.
 
 ---
 

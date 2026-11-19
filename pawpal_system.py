@@ -8,6 +8,29 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 
+def _time_to_minutes(value: object) -> Optional[float]:
+    """Convert a time object or HH:MM string to minutes after midnight."""
+    if isinstance(value, time):
+        return (
+            value.hour * 60
+            + value.minute
+            + value.second / 60
+            + value.microsecond / 60_000_000
+        )
+    if isinstance(value, str):
+        try:
+            parsed_time = time.fromisoformat(value.strip())
+        except ValueError:
+            return None
+        return (
+            parsed_time.hour * 60
+            + parsed_time.minute
+            + parsed_time.second / 60
+            + parsed_time.microsecond / 60_000_000
+        )
+    return None
+
+
 @dataclass
 class Owner:
     """Represent a pet owner and the owner's scheduling constraints."""
@@ -325,6 +348,112 @@ class Scheduler:
             return priority, preferred, task.title.lower()
 
         return sorted(tasks, key=sort_key)
+
+    def sort_by_time(self, tasks: List[Task]) -> List[Task]:
+        """Return tasks in chronological preferred-time order, with unscheduled tasks last."""
+        return sorted(
+            tasks,
+            key=lambda task: (
+                _time_to_minutes(task.preferred_time) is None,
+                _time_to_minutes(task.preferred_time) or 0,
+            ),
+        )
+
+    def filter_tasks(
+        self,
+        pet_name: Optional[str] = None,
+        completed: Optional[bool] = None,
+    ) -> List[Task]:
+        """Return owner tasks matching the requested pet and completion status."""
+        requested_pet = pet_name.strip().casefold() if pet_name is not None else None
+        return [
+            task
+            for pet in self.owner.pets
+            if requested_pet is None or pet.name.strip().casefold() == requested_pet
+            for task in pet.tasks
+            if completed is None or task.completed is completed
+        ]
+
+    def mark_task_complete(self, task: Task) -> Optional[Task]:
+        """Complete a task and add its next daily or weekly occurrence to the same pet."""
+        if task.completed:
+            return None
+
+        recurrence = task.recurrence.strip().lower()
+        owning_pet = next(
+            (
+                pet
+                for pet in self.owner.pets
+                if any(existing_task is task for existing_task in pet.tasks)
+            ),
+            None,
+        )
+        if recurrence in {"daily", "weekly"} and owning_pet is None:
+            raise ValueError("Recurring tasks must belong to a pet owned by this scheduler.")
+
+        task.mark_complete()
+        if owning_pet is None or recurrence not in {"daily", "weekly"}:
+            return None
+
+        next_date = (task.start_date or date.today()) + timedelta(
+            days=1 if recurrence == "daily" else 7
+        )
+        next_task = Task(
+            title=task.title,
+            category=task.category,
+            duration_minutes=task.duration_minutes,
+            priority=task.priority,
+            preferred_time=task.preferred_time,
+            recurrence=task.recurrence,
+            start_date=next_date,
+            recurrence_interval=task.recurrence_interval,
+            recurrence_days=list(task.recurrence_days),
+            completed=False,
+        )
+        owning_pet.add_task(next_task)
+        return next_task
+
+    def detect_conflicts(self, tasks: Optional[List[Task]] = None) -> List[str]:
+        """Return readable warnings for tasks with matching or overlapping time slots."""
+        candidate_tasks = self.owner.get_all_tasks() if tasks is None else tasks
+        conflicts: List[str] = []
+        for index, task in enumerate(candidate_tasks):
+            start = _time_to_minutes(task.preferred_time)
+            if start is None:
+                continue
+            try:
+                duration = int(task.duration_minutes)
+            except (TypeError, ValueError):
+                continue
+            if duration <= 0:
+                continue
+
+            end = start + duration
+            for other in candidate_tasks[index + 1 :]:
+                if (
+                    task.start_date is not None
+                    and other.start_date is not None
+                    and task.start_date != other.start_date
+                ):
+                    continue
+                other_start = _time_to_minutes(other.preferred_time)
+                if other_start is None:
+                    continue
+                try:
+                    other_duration = int(other.duration_minutes)
+                except (TypeError, ValueError):
+                    continue
+                if other_duration <= 0:
+                    continue
+
+                other_end = other_start + other_duration
+                if start == other_start or (start < other_end and other_start < end):
+                    conflicts.append(
+                        f"Conflict: '{task.title}' ({task.preferred_time}) and "
+                        f"'{other.title}' ({other.preferred_time}) have overlapping "
+                        "time slots."
+                    )
+        return conflicts
 
     def filter_due_tasks(
         self, tasks: List[Task], target_date: date
